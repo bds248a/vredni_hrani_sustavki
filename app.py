@@ -4,75 +4,77 @@ from PIL import Image
 import numpy as np
 import re
 
-# Инициализиране на EasyOCR четеца (правим го веднъж, за да не се бави)
 @st.cache_resource
 def load_reader():
-    # Зареждаме български и английски език
-    return easyocr.Reader(['bg', 'en'], gpu=False) # Сложи gpu=True, ако имаш NVIDIA карта
+    return easyocr.Reader(['bg', 'en'], gpu=False)
 
 reader = load_reader()
 
-# База данни с опасни добавки
-HARMFUL_ADDITIVES = {
-    "E102": "Тартразин (силно алергенен)",
-    "E110": "Сънсет жълто (опасно за деца)",
-    "E123": "Амарант (забранен в САЩ)",
-    "E211": "Натриев бензоат (консервант)",
-    "E250": "Натриев нитрит (риск от канцерогенност)",
-    "E621": "Мононатриев глутамат (възможни алергии)",
-    "E951": "Аспартам (подсладител)"
+# Разширена база данни с вредни съставки
+HARMFUL_SUBSTANCES = {
+    # Е-номера
+    "E102": "Тартразин - силен алерген, забранен в някои страни.",
+    "E211": "Натриев бензоат - консервант, подозиран за връзка с хиперактивност.",
+    "E250": "Натриев нитрит - използва се в колбаси, потенциално канцерогенен.",
+    "E621": "Мононатриев глутамат - подобрител на вкуса, може да причини главоболие.",
+    "E951": "Аспартам - изкуствен подсладител, спорен за здравето.",
+    
+    # Други съставки (ключови думи)
+    "палмово масло": "Високо съдържание на наситени мазнини; екологичен проблем.",
+    "палмова мазнина": "Високо съдържание на наситени мазнини.",
+    "хидрогенирани": "Индикация за наличие на трансмазнини, вредни за сърцето.",
+    "фруктозен сироп": "Високофруктозен сироп от царевица - свързва се със затлъстяване.",
+    "глюкозо-фруктозен": "Силно преработена захар, повишава риска от диабет.",
+    "аспартам": "Изкуствен подсладител с негативна репутация.",
+    "оцветител": "Изкуствените оцветители често са източник на хиперактивност при деца.",
 }
 
-bad_ingredients = [ "Хидрогенирани мазнини", "Частично хидрогенирани растителни масла", "Палмово масло", "Натриев нитрит ", "Натриев нитрат", 
-"Глюкозо-фруктозен сироп", "Аспартам ", "Ацесулфам K", "Мононатриев глутамат", "BHA" , "BHT" , "Титанов диоксид", "Тартразин", "Сънсет жълто", "Алура червено"
-"E310", "E311", "E312", "E320", "E321", "E407", "E430", "E431", "E432", "E433", "E434", "E435", "E436", "E450", "E451", "E452", "E466", "E620", "E621", "E622",
-"E623", "E624", "E625", "E627", "E631", "E635", "E950", "E951", "E952", "E954", "E962", "E965"]
-
 def process_image(image):
-    # Превръщаме PIL изображението в numpy array за EasyOCR
     image_np = np.array(image)
-    results = reader.readtext(image_np, detail=0) # detail=0 връща само текста
-    return " ".join(results)
+    results = reader.readtext(image_np, detail=0)
+    return " ".join(results).lower() # Правим всичко в малки букви за по-лесно търсене
 
-def extract_e_numbers(text):
-    # Регулярен израз за намиране на Е-та (кирилица 'Е' или латиница 'E')
-    pattern = r'[EeЕе]\s?\d{3,4}'
-    matches = re.findall(pattern, text)
+def analyze_ingredients(text):
+    found_items = {}
     
-    found = {}
-    for m in matches:
-        # Стандартизираме към формат 'E123'
+    # 1. Търсене на Е-номера чрез Regex
+    e_pattern = r'[eeее]\s?\d{3,4}'
+    e_matches = re.findall(e_pattern, text)
+    for m in e_matches:
         clean_code = m.replace(" ", "").upper().replace("Е", "E")
-        if clean_code in HARMFUL_ADDITIVES:
-            found[clean_code] = HARMFUL_ADDITIVES[clean_code]
-        else:
-            found[clean_code] = "Няма информация в базата, но бъдете внимателни."
-    return found
+        found_items[clean_code] = HARMFUL_SUBSTANCES.get(clean_code, "Е-номер: Проверете за специфични странични ефекти.")
 
-# --- Streamlit Интерфейс ---
-st.set_page_config(page_title="EasyOCR Скенер", page_icon="🧪")
-st.title("🧪 Анализ на съставки с EasyOCR")
-st.write("Качете снимка на етикет, за да проверим за вредни добавки.")
+    # 2. Търсене на конкретни думи
+    for ingredient, description in HARMFUL_SUBSTANCES.items():
+        if not ingredient.startswith("E") and ingredient in text:
+            found_items[ingredient.capitalize()] = description
+            
+    return found_items
+
+# --- Streamlit UI ---
+st.set_page_config(page_title="Health Scanner Pro", page_icon="🥗")
+st.title("🥗 Скенер за вредни съставки")
+st.write("Качете снимка на етикета (Съдържание), за да проверим за Е-та, палмово масло, трансмазнини и захари.")
 
 uploaded_file = st.file_uploader("Прикачи снимка...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file:
     image = Image.open(uploaded_file)
-    st.image(image, caption="Качено изображение", use_container_width=True)
+    st.image(image, caption="Качен етикет", use_container_width=True)
     
-    with st.spinner("Извличане на текст..."):
+    with st.spinner("Анализиране на съдържанието..."):
         full_text = process_image(image)
-        detected_e_numbers = extract_e_numbers(full_text)
+        results = analyze_ingredients(full_text)
         
         st.divider()
         
-        if detected_e_numbers:
-            st.subheader("⚠️ Открити добавки:")
-            for code, info in detected_e_numbers.items():
-                with st.expander(f"Резултат за {code}"):
-                    st.write(f"**Информация:** {info}")
+        if results:
+            st.error(f"Внимание! Открити са {len(results)} потенциално вредни съставки:")
+            for item, info in results.items():
+                with st.expander(f"🚩 {item}"):
+                    st.write(info)
         else:
-            st.success("Не бяха открити рискови Е-номера.")
+            st.success("Не са открити критични съставки от нашата база данни.")
 
-        with st.expander("Виж целия разпознат текст"):
-            st.write(full_text)
+        with st.expander("Технически детайли (разпознат текст)"):
+            st.text(full_text)
