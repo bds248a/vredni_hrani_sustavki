@@ -1,7 +1,3 @@
-# ==========================================
-# IMPORTS
-# ==========================================
-
 import streamlit as st
 import easyocr
 import numpy as np
@@ -16,7 +12,7 @@ from rapidfuzz import fuzz
 
 st.set_page_config(
     page_title="AI Ingredient Scanner",
-    page_icon="🧪",
+    page_icon="🧪", # Added an icon here too
     layout="centered"
 )
 
