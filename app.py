@@ -1,3 +1,7 @@
+# ==========================================
+# IMPORTS
+# ==========================================
+
 import streamlit as st
 import easyocr
 import numpy as np
@@ -32,6 +36,8 @@ reader = load_reader()
 
 INGREDIENT_DATABASE = {
 
+    # SWEETENERS
+
     "E950": {
         "en": "Acesulfame K",
         "bg": "Ацесулфам К",
@@ -39,6 +45,7 @@ INGREDIENT_DATABASE = {
         "category": "Sweetener",
         "info": "Artificial sweetener",
         "aliases": [
+            "e950",
             "acesulfame k",
             "ацесулфам",
             "ацесулфам к"
@@ -52,6 +59,7 @@ INGREDIENT_DATABASE = {
         "category": "Sweetener",
         "info": "Artificial sweetener",
         "aliases": [
+            "e951",
             "aspartame",
             "аспартам"
         ]
@@ -64,10 +72,13 @@ INGREDIENT_DATABASE = {
         "category": "Sweetener",
         "info": "Artificial sweetener",
         "aliases": [
+            "e955",
             "sucralose",
             "сукралоза"
         ]
     },
+
+    # FLAVOR ENHANCERS
 
     "E621": {
         "en": "Monosodium Glutamate",
@@ -76,11 +87,14 @@ INGREDIENT_DATABASE = {
         "category": "Flavor Enhancer",
         "info": "Flavor enhancer",
         "aliases": [
+            "e621",
             "msg",
             "monosodium glutamate",
             "мононатриев глутамат"
         ]
     },
+
+    # PRESERVATIVES
 
     "E210": {
         "en": "Benzoic Acid",
@@ -89,6 +103,7 @@ INGREDIENT_DATABASE = {
         "category": "Preservative",
         "info": "May cause allergic reactions",
         "aliases": [
+            "e210",
             "benzoic acid",
             "бензоена киселина"
         ]
@@ -101,6 +116,7 @@ INGREDIENT_DATABASE = {
         "category": "Preservative",
         "info": "May trigger asthma reactions",
         "aliases": [
+            "e220",
             "sulfur dioxide",
             "серен диоксид"
         ]
@@ -113,10 +129,13 @@ INGREDIENT_DATABASE = {
         "category": "Preservative",
         "info": "Linked to cancer risk",
         "aliases": [
+            "e250",
             "sodium nitrite",
             "натриев нитрит"
         ]
     },
+
+    # ANTIOXIDANTS
 
     "E320": {
         "en": "BHA",
@@ -125,6 +144,7 @@ INGREDIENT_DATABASE = {
         "category": "Antioxidant",
         "info": "Possible carcinogen",
         "aliases": [
+            "e320",
             "bha"
         ]
     },
@@ -136,6 +156,7 @@ INGREDIENT_DATABASE = {
         "category": "Antioxidant",
         "info": "Linked to hormonal issues",
         "aliases": [
+            "e321",
             "bht"
         ]
     }
@@ -175,6 +196,26 @@ HARMFUL_INGREDIENTS = {
     "глюкозо-фруктозен сироп": {
         "risk": 3,
         "info": "Нарушава метаболизма"
+    },
+
+    "caffeine": {
+        "risk": 2,
+        "info": "High caffeine intake may affect sleep and heart rate"
+    },
+
+    "кофеин": {
+        "risk": 2,
+        "info": "Високият прием може да повлияе съня и сърдечния ритъм"
+    },
+
+    "taurine": {
+        "risk": 1,
+        "info": "Commonly found in energy drinks"
+    },
+
+    "таурин": {
+        "risk": 1,
+        "info": "Често се среща в енергийни напитки"
     }
 }
 
@@ -209,6 +250,7 @@ def preprocess_image(image):
 
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
+    # upscale for better OCR
     gray = cv2.resize(
         gray,
         None,
@@ -217,8 +259,10 @@ def preprocess_image(image):
         interpolation=cv2.INTER_CUBIC
     )
 
+    # blur
     blur = cv2.GaussianBlur(gray, (3, 3), 0)
 
+    # threshold
     thresh = cv2.adaptiveThreshold(
         blur,
         255,
@@ -260,6 +304,7 @@ def normalize_e_number(e):
     e = e.replace(" ", "")
     e = e.replace("-", "")
     e = e.replace(".", "")
+    e = e.replace(":", "")
 
     e = e.replace("O", "0")
     e = e.replace("I", "1")
@@ -276,7 +321,7 @@ def detect_e_numbers(text):
     found = []
 
     e_matches = re.findall(
-        r'[Ee][\s\-\.]?\d{3}',
+        r'[Ee][\s\-\.:]?\d{3}',
         text
     )
 
@@ -287,7 +332,7 @@ def detect_e_numbers(text):
         if e_clean in INGREDIENT_DATABASE:
             found.append(e_clean)
 
-    return found
+    return list(set(found))
 
 # ==========================================
 # DETECT INGREDIENTS
@@ -299,20 +344,34 @@ def detect_ingredients(text):
 
     found = []
 
+    # split text into smaller chunks
+    words = re.split(r'[,;\n()]', text)
+
+    # detect E-numbers
     found.extend(detect_e_numbers(text))
 
+    # detect aliases
     for code, data in INGREDIENT_DATABASE.items():
 
         for alias in data["aliases"]:
 
-            score = fuzz.partial_ratio(
-                alias.lower(),
-                text
-            )
+            alias = alias.lower()
 
-            if score > 85:
-                found.append(code)
-                break
+            for word in words:
+
+                word = word.strip().lower()
+
+                # exact match
+                if alias in word:
+                    found.append(code)
+                    break
+
+                # fuzzy match
+                score = fuzz.ratio(alias, word)
+
+                if score > 85:
+                    found.append(code)
+                    break
 
     return list(set(found))
 
@@ -326,15 +385,30 @@ def detect_harmful(text):
 
     found = []
 
+    words = re.split(r'[,;\n()]', text)
+
     for ingredient in HARMFUL_INGREDIENTS:
 
-        score = fuzz.partial_ratio(
-            ingredient,
-            text
-        )
+        ingredient_lower = ingredient.lower()
 
-        if score > 85:
-            found.append(ingredient)
+        for word in words:
+
+            word = word.strip().lower()
+
+            # exact match
+            if ingredient_lower in word:
+                found.append(ingredient)
+                break
+
+            # fuzzy match
+            score = fuzz.ratio(
+                ingredient_lower,
+                word
+            )
+
+            if score > 85:
+                found.append(ingredient)
+                break
 
     return list(set(found))
 
@@ -348,15 +422,30 @@ def detect_allergens(text):
 
     found = []
 
+    words = re.split(r'[,;\n()]', text)
+
     for allergen in ALLERGENS:
 
-        score = fuzz.partial_ratio(
-            allergen,
-            text
-        )
+        allergen_lower = allergen.lower()
 
-        if score > 85:
-            found.append(allergen)
+        for word in words:
+
+            word = word.strip().lower()
+
+            # exact match
+            if allergen_lower in word:
+                found.append(allergen)
+                break
+
+            # fuzzy match
+            score = fuzz.ratio(
+                allergen_lower,
+                word
+            )
+
+            if score > 85:
+                found.append(allergen)
+                break
 
     return list(set(found))
 
@@ -441,10 +530,7 @@ if uploaded_file:
 
     processed = preprocess_image(image)
 
-    # ======================================
-    # OCR (FIXED VERSION)
-    # ======================================
-
+    # OCR
     results = reader.readtext(
         processed,
         detail=0,
