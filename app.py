@@ -17,7 +17,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# OCR LOADING
+# LOAD OCR
 # ==========================================
 
 @st.cache_resource
@@ -32,17 +32,12 @@ reader = load_reader()
 
 INGREDIENT_DATABASE = {
 
-    # ======================================
-    # SWEETENERS
-    # ======================================
-
     "E950": {
         "en": "Acesulfame K",
         "bg": "Ацесулфам К",
         "risk": 3,
         "category": "Sweetener",
-        "info_en": "Artificial sweetener",
-        "info_bg": "Изкуствен подсладител",
+        "info": "Artificial sweetener",
         "aliases": [
             "acesulfame k",
             "ацесулфам",
@@ -55,8 +50,7 @@ INGREDIENT_DATABASE = {
         "bg": "Аспартам",
         "risk": 3,
         "category": "Sweetener",
-        "info_en": "Artificial sweetener",
-        "info_bg": "Изкуствен подсладител",
+        "info": "Artificial sweetener",
         "aliases": [
             "aspartame",
             "аспартам"
@@ -68,25 +62,19 @@ INGREDIENT_DATABASE = {
         "bg": "Сукралоза",
         "risk": 3,
         "category": "Sweetener",
-        "info_en": "Artificial sweetener",
-        "info_bg": "Изкуствен подсладител",
+        "info": "Artificial sweetener",
         "aliases": [
             "sucralose",
             "сукралоза"
         ]
     },
 
-    # ======================================
-    # FLAVOR ENHANCERS
-    # ======================================
-
     "E621": {
         "en": "Monosodium Glutamate",
         "bg": "Мононатриев глутамат",
         "risk": 2,
         "category": "Flavor Enhancer",
-        "info_en": "Flavor enhancer",
-        "info_bg": "Подобрител на вкуса",
+        "info": "Flavor enhancer",
         "aliases": [
             "msg",
             "monosodium glutamate",
@@ -94,17 +82,12 @@ INGREDIENT_DATABASE = {
         ]
     },
 
-    # ======================================
-    # PRESERVATIVES
-    # ======================================
-
     "E210": {
         "en": "Benzoic Acid",
         "bg": "Бензоена киселина",
         "risk": 2,
         "category": "Preservative",
-        "info_en": "May cause allergic reactions",
-        "info_bg": "Може да предизвика алергични реакции",
+        "info": "May cause allergic reactions",
         "aliases": [
             "benzoic acid",
             "бензоена киселина"
@@ -116,8 +99,7 @@ INGREDIENT_DATABASE = {
         "bg": "Серен диоксид",
         "risk": 3,
         "category": "Preservative",
-        "info_en": "May trigger asthma reactions",
-        "info_bg": "Може да предизвика астматични реакции",
+        "info": "May trigger asthma reactions",
         "aliases": [
             "sulfur dioxide",
             "серен диоксид"
@@ -129,25 +111,19 @@ INGREDIENT_DATABASE = {
         "bg": "Натриев нитрит",
         "risk": 3,
         "category": "Preservative",
-        "info_en": "Linked to cancer risk",
-        "info_bg": "Свързан с риск от рак",
+        "info": "Linked to cancer risk",
         "aliases": [
             "sodium nitrite",
             "натриев нитрит"
         ]
     },
 
-    # ======================================
-    # ANTIOXIDANTS
-    # ======================================
-
     "E320": {
         "en": "BHA",
         "bg": "BHA",
         "risk": 3,
         "category": "Antioxidant",
-        "info_en": "Possible carcinogen",
-        "info_bg": "Възможен канцероген",
+        "info": "Possible carcinogen",
         "aliases": [
             "bha"
         ]
@@ -158,8 +134,7 @@ INGREDIENT_DATABASE = {
         "bg": "BHT",
         "risk": 3,
         "category": "Antioxidant",
-        "info_en": "Linked to hormonal issues",
-        "info_bg": "Свързан с хормонални нарушения",
+        "info": "Linked to hormonal issues",
         "aliases": [
             "bht"
         ]
@@ -173,37 +148,31 @@ INGREDIENT_DATABASE = {
 HARMFUL_INGREDIENTS = {
 
     "sugar": {
-        "bg": "Захар",
         "risk": 3,
-        "info": "High sugar intake may cause obesity and diabetes"
+        "info": "High sugar intake may lead to obesity and diabetes"
     },
 
     "захар": {
-        "bg": "Захар",
         "risk": 3,
         "info": "Високият прием може да доведе до диабет"
     },
 
     "palm oil": {
-        "bg": "Палмово масло",
         "risk": 2,
         "info": "May increase LDL cholesterol"
     },
 
     "палмово масло": {
-        "bg": "Палмово масло",
         "risk": 2,
         "info": "Повишава LDL холестерола"
     },
 
     "glucose-fructose syrup": {
-        "bg": "Глюкозо-фруктозен сироп",
         "risk": 3,
         "info": "May disrupt metabolism"
     },
 
     "глюкозо-фруктозен сироп": {
-        "bg": "Глюкозо-фруктозен сироп",
         "risk": 3,
         "info": "Нарушава метаболизма"
     }
@@ -262,7 +231,7 @@ def preprocess_image(image):
     return thresh
 
 # ==========================================
-# NORMALIZATION
+# NORMALIZE TEXT
 # ==========================================
 
 def normalize_text(text):
@@ -272,7 +241,6 @@ def normalize_text(text):
     replacements = {
         "0": "o",
         "1": "i",
-        "5": "s",
         "|": "i"
     }
 
@@ -331,10 +299,8 @@ def detect_ingredients(text):
 
     found = []
 
-    # E-Numbers
     found.extend(detect_e_numbers(text))
 
-    # Alias matching
     for code, data in INGREDIENT_DATABASE.items():
 
         for alias in data["aliases"]:
@@ -345,7 +311,6 @@ def detect_ingredients(text):
             )
 
             if score > 85:
-
                 found.append(code)
                 break
 
@@ -396,7 +361,7 @@ def detect_allergens(text):
     return list(set(found))
 
 # ==========================================
-# RISK CALCULATION
+# CALCULATE SCORE
 # ==========================================
 
 def calculate_score(found_items, harmful_items):
@@ -446,16 +411,15 @@ def risk_color(risk):
 st.title("🧪 AI Ingredient Scanner")
 
 st.markdown("""
-Scan food labels and detect:
+Upload a food label image to detect:
 - Harmful ingredients
 - E-numbers
 - Allergens
 - Artificial sweeteners
-- Preservatives
 """)
 
 uploaded_file = st.file_uploader(
-    "📤 Upload food label image",
+    "📤 Upload image",
     type=["jpg", "jpeg", "png"]
 )
 
@@ -477,38 +441,44 @@ if uploaded_file:
 
     processed = preprocess_image(image)
 
-    # OCR
+    # ======================================
+    # OCR (FIXED VERSION)
+    # ======================================
+
     results = reader.readtext(
         processed,
-        detail=1,
+        detail=0,
         paragraph=True
     )
 
-    extracted_text = ""
+    extracted_text = " ".join(results)
 
-    for detection in results:
-
-        bbox, text, confidence = detection
-
-        if confidence > 0.35:
-            extracted_text += " " + text
+    # ======================================
+    # SHOW EXTRACTED TEXT
+    # ======================================
 
     st.subheader("📄 Extracted Text")
 
     st.text_area(
-        "",
+        "OCR Result",
         extracted_text,
         height=200
     )
 
+    # ======================================
     # DETECTION
+    # ======================================
+
     found_ingredients = detect_ingredients(extracted_text)
 
     harmful_found = detect_harmful(extracted_text)
 
     allergens_found = detect_allergens(extracted_text)
 
+    # ======================================
     # SCORE
+    # ======================================
+
     score = calculate_score(
         found_ingredients,
         harmful_found
@@ -520,13 +490,13 @@ if uploaded_file:
     # RESULTS
     # ======================================
 
-    st.subheader("🧪 Analysis Result")
+    st.subheader("🧪 Analysis")
 
     st.markdown(f"## {label}")
     st.markdown(f"### Health Score: {score}")
 
     # ======================================
-    # E-NUMBERS & ADDITIVES
+    # ADDITIVES
     # ======================================
 
     if found_ingredients:
@@ -544,7 +514,7 @@ if uploaded_file:
 - 🇧🇬 {data['bg']}
 - Category: {data['category']}
 - Risk Level: {data['risk']}/3
-- ℹ️ {data['info_en']}
+- ℹ️ {data['info']}
 """)
 
     # ======================================
@@ -573,7 +543,7 @@ if uploaded_file:
 
     if allergens_found:
 
-        st.subheader("🥜 Allergens Detected")
+        st.subheader("🥜 Allergens")
 
         for allergen in allergens_found:
 
@@ -589,13 +559,11 @@ if uploaded_file:
         not allergens_found
     ):
 
-        st.success(
-            "No dangerous ingredients detected."
-        )
+        st.success("✅ No dangerous ingredients detected.")
 
 # ==========================================
 # FOOTER
 # ==========================================
 
 st.markdown("---")
-st.caption("AI Ingredient Scanner • BG + EN OCR Support")
+st.caption("AI Ingredient Scanner • BG + EN OCR")
