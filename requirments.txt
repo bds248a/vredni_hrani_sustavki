@@ -1,8 +1,8 @@
-streamlit>=1.35.0
-easyocr>=1.7.1
-numpy>=1.26.4
-pillow>=10.3.0
-opencv-python-headless>=4.9.0.80
-rapidfuzz>=3.9.3
-torch
-torchvision
+streamlit
+easyocr
+numpy
+pillow
+opencv-python-headless
+rapidfuzz
+torch==2.2.2
+torchvision==0.17.2
