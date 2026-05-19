@@ -12,9 +12,11 @@ from rapidfuzz import fuzz
 
 st.set_page_config(
     page_title="AI Ingredient Scanner",
-    page_icon="🧪", # Added an icon here too
+    page_icon="🧪",
     layout="centered"
 )
+
+st.set_option('client.showErrorDetails', True)
 
 # ==========================================
 # LOAD OCR
@@ -22,7 +24,10 @@ st.set_page_config(
 
 @st.cache_resource
 def load_reader():
-    return easyocr.Reader(['bg', 'en'])
+    return easyocr.Reader(
+        ['bg', 'en'],
+        gpu=False
+    )
 
 reader = load_reader()
 
@@ -242,11 +247,13 @@ ALLERGENS = [
 
 def preprocess_image(image):
 
+    image = image.convert("RGB")
+
     img = np.array(image)
 
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
-    # upscale for better OCR
+    # upscale
     gray = cv2.resize(
         gray,
         None,
@@ -255,18 +262,16 @@ def preprocess_image(image):
         interpolation=cv2.INTER_CUBIC
     )
 
-    # blur
-    blur = cv2.GaussianBlur(gray, (3, 3), 0)
+    # denoise
+    gray = cv2.fastNlMeansDenoising(gray)
 
     # threshold
-    thresh = cv2.adaptiveThreshold(
-        blur,
+    thresh = cv2.threshold(
+        gray,
+        0,
         255,
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY,
-        11,
-        2
-    )
+        cv2.THRESH_BINARY + cv2.THRESH_OTSU
+    )[1]
 
     return thresh
 
@@ -340,7 +345,6 @@ def detect_ingredients(text):
 
     found = []
 
-    # split text into smaller chunks
     words = re.split(r'[,;\n()]', text)
 
     # detect E-numbers
@@ -357,8 +361,11 @@ def detect_ingredients(text):
 
                 word = word.strip().lower()
 
-                # exact match
-                if alias in word:
+                # exact match with word boundaries
+                if re.search(
+                    rf'\b{re.escape(alias)}\b',
+                    word
+                ):
                     found.append(code)
                     break
 
@@ -392,7 +399,10 @@ def detect_harmful(text):
             word = word.strip().lower()
 
             # exact match
-            if ingredient_lower in word:
+            if re.search(
+                rf'\b{re.escape(ingredient_lower)}\b',
+                word
+            ):
                 found.append(ingredient)
                 break
 
@@ -429,7 +439,10 @@ def detect_allergens(text):
             word = word.strip().lower()
 
             # exact match
-            if allergen_lower in word:
+            if re.search(
+                rf'\b{re.escape(allergen_lower)}\b',
+                word
+            ):
                 found.append(allergen)
                 break
 
@@ -527,13 +540,21 @@ if uploaded_file:
     processed = preprocess_image(image)
 
     # OCR
-    results = reader.readtext(
-        processed,
-        detail=0,
-        paragraph=True
-    )
+    try:
 
-    extracted_text = " ".join(results)
+        results = reader.readtext(
+            processed,
+            detail=0,
+            paragraph=True,
+            batch_size=1
+        )
+
+        extracted_text = " ".join(results)
+
+    except Exception as e:
+
+        st.error(f"OCR Error: {e}")
+        st.stop()
 
     # ======================================
     # SHOW EXTRACTED TEXT
