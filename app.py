@@ -156,4 +156,115 @@ def detect_harmful(text):
                 break
     return list(set(found))
 
-def detect_allergens(text
+def detect_allergens(text):
+    normalized = normalize_text(text)
+    found = []
+    words = [w.strip() for w in re.split(r'[,;\n()]', normalized) if w.strip()]
+
+    for allergen in ALLERGENS:
+        all_lower = allergen.lower()
+        for word in words:
+            if all_lower in word or fuzz.ratio(all_lower, word) > 85:
+                found.append(allergen)
+                break
+    return list(set(found))
+
+# ==========================================
+# CALCULATION ENGINE (Safely using .get())
+# ==========================================
+def calculate_score(found_items, harmful_items):
+    total = 0
+    for item in found_items:
+        # Using .get() prevents unexpected app crashes if an item goes missing
+        total += INGREDIENT_DATABASE.get(item, {}).get("risk", 0)
+    for item in harmful_items:
+        total += HARMFUL_INGREDIENTS.get(item, {}).get("risk", 0)
+    return total
+
+def get_health_label(score):
+    if score == 0: return "🟢 Healthy"
+    elif score <= 4: return "🟡 Moderate"
+    return "🔴 Unhealthy"
+
+def risk_color(risk):
+    if risk == 1: return "🟢"
+    elif risk == 2: return "🟡"
+    return "🔴"
+
+# ==========================================
+# UI RUNTIME
+# ==========================================
+st.title("🧪 AI Ingredient Scanner")
+
+st.markdown("""
+Upload a food label image to detect:
+- Harmful ingredients
+- E-numbers
+- Allergens
+- Artificial sweeteners
+""")
+
+uploaded_file = st.file_uploader("📤 Upload image", type=["jpg", "jpeg", "png"])
+
+if uploaded_file:
+    image = Image.open(uploaded_file)
+    st.image(image, caption="Uploaded Image", use_container_width=True)
+    st.write("🔍 Processing image...")
+
+    processed = preprocess_image(image)
+
+    # Execute OCR directly on the softly filtered array
+    results = reader.readtext(processed, detail=0, paragraph=True)
+    extracted_text = " ".join(results)
+
+    st.subheader("📄 Extracted Text")
+    st.text_area("OCR Result", extracted_text, height=200)
+
+    # Run Analysis Detections
+    found_ingredients = detect_ingredients(extracted_text)
+    harmful_found = detect_harmful(extracted_text)
+    allergens_found = detect_allergens(extracted_text)
+
+    score = calculate_score(found_ingredients, harmful_found)
+    label = get_health_label(score)
+
+    st.subheader("🧪 Analysis")
+    st.markdown(f"## {label}")
+    st.markdown(f"### Health Score: {score}")
+
+    if found_ingredients:
+        st.subheader("⚠️ Detected Additives")
+        for item in found_ingredients:
+            data = INGREDIENT_DATABASE.get(item)
+            if data:
+                color = risk_color(data["risk"])
+                st.markdown(f"""
+{color} **{item} — {data['en']}**
+- 🇧🇬 {data['bg']}
+- Category: {data['category']}
+- Risk Level: {data['risk']}/3
+- ℹ️ {data['info']}
+""")
+
+    if harmful_found:
+        st.subheader("🚨 Harmful Ingredients")
+        for item in harmful_found:
+            data = HARMFUL_INGREDIENTS.get(item)
+            if data:
+                color = risk_color(data["risk"])
+                st.markdown(f"""
+{color} **{item.title()}**
+- Risk Level: {data['risk']}/3
+- ℹ️ {data['info']}
+""")
+
+    if allergens_found:
+        st.subheader("🥜 Allergens")
+        for allergen in allergens_found:
+            st.warning(f"⚠️ {allergen}")
+
+    if not found_ingredients and not harmful_found and not allergens_found:
+        st.success("✅ No dangerous ingredients detected.")
+
+st.markdown("---")
+st.caption("AI Ingredient Scanner • BG + EN OCR")
