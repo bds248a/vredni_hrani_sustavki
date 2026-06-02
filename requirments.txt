@@ -1,6 +1,6 @@
 streamlit
 easyocr
-numpy
 opencv-python-headless
-pillow
 rapidfuzz
+numpy
+pillow
