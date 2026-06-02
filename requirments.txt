@@ -1,6 +1,10 @@
 streamlit
 easyocr
-opencv-python-headless
-rapidfuzz
-numpy
 pillow
+numpy
+pandas
+torch
+torchvision
+opencv-python-headless
+scikit-image
+scipy
