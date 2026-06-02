@@ -475,4 +475,3 @@ st.markdown("---")
 st.caption(
     "AI Ingredient Scanner • BG + EN OCR"
 )
-```
